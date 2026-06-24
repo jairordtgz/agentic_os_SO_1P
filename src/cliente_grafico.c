@@ -1,10 +1,11 @@
 #include "ventana.h"
+#include "protocolo.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Uso: %s <id_ventana>\n", argv[0]);
+    if (argc < 2 || argc > 4) {
+        fprintf(stderr, "Uso: %s <id_ventana> [host] [puerto]\n", argv[0]);
         return 1;
     }
 
@@ -15,5 +16,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    return ejecutar_ventana((int)id);
+    const char *host   = (argc >= 3) ? argv[2] : IALEARNER_HOST_DEFECTO;
+    const char *puerto = (argc >= 4) ? argv[3] : IALEARNER_PUERTO_DEFECTO;
+
+    return ejecutar_ventana((int)id, host, puerto);
 }

@@ -1,4 +1,5 @@
 #include "proceso.h"
+#include "protocolo.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,8 +29,6 @@ static void revisar_procesos_terminados(TablaProcesos *tabla) {
     }
 }
 
-/* Construye la ruta de cliente_grafico a partir de la ruta del propio
-   launcher, para no depender de un directorio fijo. */
 static int obtener_ruta_cliente(char *buffer, size_t tam) {
     ssize_t n = readlink("/proc/self/exe", buffer, tam - 1);
     if (n < 0) {
@@ -52,7 +51,9 @@ static int obtener_ruta_cliente(char *buffer, size_t tam) {
     return 0;
 }
 
-static int crear_ventana(TablaProcesos *tabla, int id_ventana, const char *ruta_cliente) {
+/* CAMBIO: ahora recibe host/puerto y los reenvia a cliente_grafico. */
+static int crear_ventana(TablaProcesos *tabla, int id_ventana, const char *ruta_cliente,
+                          const char *host, const char *puerto) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
@@ -62,7 +63,7 @@ static int crear_ventana(TablaProcesos *tabla, int id_ventana, const char *ruta_
     if (pid == 0) {
         char id_str[16];
         snprintf(id_str, sizeof(id_str), "%d", id_ventana);
-        execl(ruta_cliente, ruta_cliente, id_str, (char *)NULL);
+        execl(ruta_cliente, ruta_cliente, id_str, host, puerto, (char *)NULL);
         fprintf(stderr, "[launcher] No se pudo ejecutar '%s': %s\n", ruta_cliente, strerror(errno));
         _exit(127);
     }
@@ -127,7 +128,12 @@ static void terminar_todas(TablaProcesos *tabla) {
     }
 }
 
-int main(void) {
+/* CAMBIO: main ahora acepta host/puerto de IALearner como argumentos
+   opcionales: ./bin/launcher [host] [puerto] */
+int main(int argc, char *argv[]) {
+    const char *host_ialearner   = (argc >= 2) ? argv[1] : IALEARNER_HOST_DEFECTO;
+    const char *puerto_ialearner = (argc >= 3) ? argv[2] : IALEARNER_PUERTO_DEFECTO;
+
     struct sigaction sa;
     sa.sa_handler = manejador_sigchld;
     sigemptyset(&sa.sa_mask);
@@ -148,6 +154,8 @@ int main(void) {
         fprintf(stderr, "No se pudo inicializar la tabla de procesos\n");
         return 1;
     }
+
+    printf("Las ventanas se conectaran a IALearner en %s:%s\n", host_ialearner, puerto_ialearner);
 
     int siguiente_id = 1;
     int salir_programa = 0;
@@ -176,7 +184,7 @@ int main(void) {
                 int n = leer_entero_positivo("Cuantas ventanas deseas crear? ", 1, MAX_VENTANAS_POR_LOTE);
                 if (n < 0) { salir_programa = 1; break; }
                 for (int i = 0; i < n; i++) {
-                    crear_ventana(tabla, siguiente_id, ruta_cliente);
+                    crear_ventana(tabla, siguiente_id, ruta_cliente, host_ialearner, puerto_ialearner);
                     siguiente_id++;
                 }
                 break;
